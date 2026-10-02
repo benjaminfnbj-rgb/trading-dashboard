@@ -1,5 +1,9 @@
 const $ = (id) => document.getElementById(id);
 const KEY = 'dash_key';
+const REFRESH_MS = 15 * 60 * 1000; // chaque lecture réveille Neon (veille après 5 min) : ne jamais rafraîchir plus souvent
+const ACTIVE_MAX_MIN = 45; // le bot écrit en base toutes les 30 min par défaut (DB_FLUSH_SECONDS, minimum 900)
+let lastLoad = 0;
+let selectedMode = null;
 const COLORS = ['#f59e0b', '#6366f1', '#00ff9d', '#ff4560'];
 let equityChart = null, rsiChart = null;
 
@@ -37,8 +41,27 @@ function render(d) {
 
   const ageMin = d.lastUpdate ? (Date.now() - new Date(d.lastUpdate).getTime()) / 60000 : null;
   if (ageMin == null) setStatus('', 'En attente de données');
-  else if (ageMin < 3) setStatus('ok', 'Bot actif');
-  else setStatus('bad', `Inactif depuis ${Math.round(ageMin)} min`);
+  else if (ageMin < ACTIVE_MAX_MIN) setStatus('ok', `Bot actif · données il y a ${Math.round(ageMin)} min`);
+  else setStatus('bad', `Aucune donnée depuis ${Math.round(ageMin)} min`);
+
+  const sel = $('modeSel');
+  const modes = [...new Set([...(d.modes || []), d.mode].filter(Boolean))];
+  sel.replaceChildren(...modes.map((m) => { const o = document.createElement('option'); o.value = m; o.textContent = m.toUpperCase(); return o; }));
+  sel.value = d.mode;
+  sel.classList.toggle('hidden', modes.length < 2);
+
+  const sf = $('safety');
+  if (!d.safety || !d.safety.known) { sf.className = 'banner'; sf.textContent = 'État d\'arrêt : pas encore enregistré par le bot'; }
+  else if (d.safety.tradingEnabled) { sf.className = 'banner ok'; sf.textContent = 'Trading actif'; }
+  else {
+    sf.className = 'banner bad';
+    const why = d.safety.reasons.map((r) => `${r.code} : ${r.message}`).join(' · ');
+    sf.textContent = `TRADING SUSPENDU${d.safety.killSwitch ? ' (arrêt d\'urgence)' : ''}${why ? ' — ' + why : ''}`;
+  }
+
+  $('decisions').innerHTML = (d.decisions || []).length
+    ? d.decisions.map((x) => `<tr><td>${new Date(x.t).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td><td>${esc(x.symbol)} ${esc(x.timeframe)}</td><td>${esc(x.strategy)} v${esc(x.version)}</td><td><span class="tag ${x.decision === 'BUY' ? 'buy' : x.decision === 'SELL' ? 'sell' : 'hold'}">${esc(x.decision)}</span></td><td>${esc(x.reason)}</td></tr>`).join('')
+    : '<tr><td colspan="5"><div class="empty">Aucune décision enregistrée pour ce mode</div></td></tr>';
 
   const eq = d.equity.length ? d.equity[d.equity.length - 1].v : null;
   const winRate = d.stats.closed ? Math.round((d.stats.wins / d.stats.closed) * 100) + ' %' : '--';
@@ -86,10 +109,11 @@ async function load() {
   const key = sessionStorage.getItem(KEY);
   if (!key) return showLogin();
   try {
-    const r = await fetch('/api/data', { headers: { 'x-dashboard-key': key }, cache: 'no-store' });
+    const r = await fetch('/api/data' + (selectedMode ? '?mode=' + encodeURIComponent(selectedMode) : ''), { headers: { 'x-dashboard-key': key }, cache: 'no-store' });
     if (r.status === 401) { sessionStorage.removeItem(KEY); return showLogin('Clé incorrecte ou non configurée.'); }
     if (!r.ok) throw new Error('HTTP ' + r.status);
     render(await r.json());
+    lastLoad = Date.now();
   } catch (e) {
     setStatus('bad', 'Erreur de chargement');
   }
@@ -97,5 +121,7 @@ async function load() {
 
 $('loginForm').addEventListener('submit', (e) => { e.preventDefault(); sessionStorage.setItem(KEY, $('keyInput').value.trim()); $('keyInput').value = ''; load(); });
 $('refresh').addEventListener('click', load);
+$('modeSel').addEventListener('change', (e) => { selectedMode = e.target.value; load(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && Date.now() - lastLoad > REFRESH_MS) load(); });
 load();
-setInterval(load, 30000);
+setInterval(() => { if (!document.hidden) load(); }, REFRESH_MS);

@@ -12,6 +12,7 @@
   <div class="logo"><span class="logo-icon">📈</span><span>Benjamin Trading Bot</span></div>
   <div class="head-right">
     <span class="mode" id="mode">--</span>
+    <select class="select hidden" id="modeSel" aria-label="Mode affiché"></select>
     <span class="pill" id="status"><span class="dot"></span><span id="statusText">Chargement…</span></span>
     <button class="btn" id="refresh" type="button">⟳</button>
   </div>
@@ -25,11 +26,16 @@
   </section>
 
   <div id="content" class="hidden">
+    <div class="banner" id="safety">État d'arrêt : chargement…</div>
     <div class="kpis" id="kpis"></div>
     <div class="grid2">
       <section class="panel"><div class="panel-head"><span>Évolution du capital</span><span class="badge">USDT</span></div><div class="chart"><canvas id="equityChart"></canvas></div></section>
       <section class="panel"><div class="panel-head"><span>Marchés</span><span class="badge">RSI 6 h</span></div><div id="markets"></div><div class="chart small"><canvas id="rsiChart"></canvas></div></section>
     </div>
+    <section class="panel">
+      <div class="panel-head"><span>Dernières décisions</span><span class="badge">pourquoi le bot a agi ou non</span></div>
+      <div class="table-wrap"><table><thead><tr><th>Heure</th><th>Symbole</th><th>Stratégie</th><th>Décision</th><th>Raison</th></tr></thead><tbody id="decisions"></tbody></table></div>
+    </section>
     <section class="panel">
       <div class="panel-head"><span>Trades récents</span><span class="badge" id="tradeCount">0</span></div>
       <div class="table-wrap"><table><thead><tr><th>Ouvert</th><th>Symbole</th><th>Mode</th><th>Entrée</th><th>Qté</th><th>SL</th><th>TP</th><th>Sortie</th><th>P/L</th><th>Statut</th></tr></thead><tbody id="trades"></tbody></table></div>
